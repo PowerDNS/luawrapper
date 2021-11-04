@@ -53,7 +53,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <boost/optional.hpp>
 #include <boost/variant.hpp>
 #include <boost/type_traits.hpp>
-#include <lua.hpp>
+#include <lua.h>
+#include <lualib.h>
+#include <Luau/Compiler.h>
 
 #if defined(_MSC_VER) && _MSC_VER < 1900
 #   include "misc/exception.hpp"
@@ -68,6 +70,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define LUACONTEXT_GLOBAL_EQ "e5ddced079fc405aa4937b386ca387d2"
 #define EQ_FUNCTION_NAME "__eq"
 #define TOSTRING_FUNCTION_NAME "__tostring"
+
+#define lua_newuserdata(X,Y) lua_newuserdata(X,Y,0)
 
 /**
  * Defines a Lua context
@@ -94,13 +98,13 @@ public:
         if (mState == nullptr)
             throw std::bad_alloc();
 
-        // setting the panic function
-        lua_atpanic(mState, [](lua_State* state) -> int {
-            const std::string str = lua_tostring(state, -1);
-            lua_pop(state, 1);
-            assert(false && "lua_atpanic triggered");
-            exit(0);
-        });
+        // // setting the panic function
+        // lua_atpanic(mState, [](lua_State* state) -> int {
+        //     const std::string str = lua_tostring(state, -1);
+        //     lua_pop(state, 1);
+        //     assert(false && "lua_atpanic triggered");
+        //     exit(0);
+        // });
 
         // opening default library if required to do so
         if (openDefaultLibs)
@@ -1337,12 +1341,10 @@ private:
         };
 
         // we create an instance of Reader, and we call lua_load
-        Reader reader{code};
-        const auto loadReturnValue = lua_load(state, &Reader::read, &reader, "chunk"
-#           if LUA_VERSION_NUM >= 502
-                , nullptr
-#           endif
-        );
+        // Reader reader{code};
+        std::string s(std::istreambuf_iterator<char>(code), {});
+        std::string bytecode = Luau::compile(s);
+        const auto loadReturnValue = luau_load(state, "chunk", bytecode.data(), bytecode.size());
 
         // now we have to check return value
         if (loadReturnValue != 0) {
@@ -1362,7 +1364,10 @@ private:
     // this function loads data and pushes a function at the top of the stack
     // throws in case of syntax error
     static PushedObject load(lua_State* state, const char* code) {
-        auto loadReturnValue = luaL_loadstring(state, code);
+        std::string s(code);
+        std::string bytecode = Luau::compile(s);
+        auto loadReturnValue = luau_load(state, "chunk", bytecode.data(), bytecode.size());
+        // auto loadReturnValue = luaL_loadstring(state, code);
 
         // now we have to check return value
         if (loadReturnValue != 0) {
@@ -2269,56 +2274,56 @@ struct LuaContext::Pusher<TReturnType (TParameters...)>
         return PushedObject{state, 1};
     }
 
-    // this is the version of "push" for trivially destructible objects
-    template<typename TFunctionObject>
-    static auto push(lua_State* state, TFunctionObject fn) noexcept
-        -> typename std::enable_if<boost::has_trivial_destructor<TFunctionObject>::value, PushedObject>::type
-    {
-        // TODO: is_move_constructible not supported by some compilers
-        //static_assert(std::is_move_constructible<TFunctionObject>::value, "The function object must be move-constructible");
+    // // this is the version of "push" for trivially destructible objects
+    // template<typename TFunctionObject>
+    // static auto push(lua_State* state, TFunctionObject fn) noexcept
+    //     -> typename std::enable_if<boost::has_trivial_destructor<TFunctionObject>::value, PushedObject>::type
+    // {
+    //     // TODO: is_move_constructible not supported by some compilers
+    //     //static_assert(std::is_move_constructible<TFunctionObject>::value, "The function object must be move-constructible");
 
-        // when the lua script calls the thing we will push on the stack, we want "fn" to be executed
-        // since "fn" doesn't need to be destroyed, we simply push it on the stack
+    //     // when the lua script calls the thing we will push on the stack, we want "fn" to be executed
+    //     // since "fn" doesn't need to be destroyed, we simply push it on the stack
 
-        // this is the cfunction that is the callback
-        const auto function = [](lua_State* state_) -> int
-        {
-            // the function object is an upvalue
-            const auto toCall = static_cast<TFunctionObject*>(lua_touserdata(state_, lua_upvalueindex(1)));
-            return callback(state_, toCall, lua_gettop(state_)).release();
-        };
+    //     // this is the cfunction that is the callback
+    //     const auto function = [](lua_State* state_) -> int
+    //     {
+    //         // the function object is an upvalue
+    //         const auto toCall = static_cast<TFunctionObject*>(lua_touserdata(state_, lua_upvalueindex(1)));
+    //         return callback(state_, toCall, lua_gettop(state_)).release();
+    //     };
 
-        // we copy the function object onto the stack
-        const auto functionObjectLocation = static_cast<TFunctionObject*>(lua_newuserdata(state, sizeof(TFunctionObject)));
-        new (functionObjectLocation) TFunctionObject(std::move(fn));
+    //     // we copy the function object onto the stack
+    //     const auto functionObjectLocation = static_cast<TFunctionObject*>(lua_newuserdata(state, sizeof(TFunctionObject)));
+    //     new (functionObjectLocation) TFunctionObject(std::move(fn));
 
-        // pushing the function with the function object as upvalue
-        lua_pushcclosure(state, function, 1);
-        return PushedObject{state, 1};
-    }
+    //     // pushing the function with the function object as upvalue
+    //     lua_pushcclosure(state, function, 1);
+    //     return PushedObject{state, 1};
+    // }
     
-    // this is the version of "push" for pointer to functions
-    static auto push(lua_State* state, TReturnType (*fn)(TParameters...)) noexcept
-        -> PushedObject
-    {
-        // when the lua script calls the thing we will push on the stack, we want "fn" to be executed
-        // since "fn" doesn't need to be destroyed, we simply push it on the stack
+    // // this is the version of "push" for pointer to functions
+    // static auto push(lua_State* state, TReturnType (*fn)(TParameters...)) noexcept
+    //     -> PushedObject
+    // {
+    //     // when the lua script calls the thing we will push on the stack, we want "fn" to be executed
+    //     // since "fn" doesn't need to be destroyed, we simply push it on the stack
 
-        // this is the cfunction that is the callback
-        const auto function = [](lua_State* state_) -> int
-        {
-            // the function object is an upvalue
-            const auto toCall = reinterpret_cast<TReturnType (*)(TParameters...)>(lua_touserdata(state_, lua_upvalueindex(1)));
-            return callback(state_, toCall, lua_gettop(state_)).release();
-        };
+    //     // this is the cfunction that is the callback
+    //     const auto function = [](lua_State* state_) -> int
+    //     {
+    //         // the function object is an upvalue
+    //         const auto toCall = reinterpret_cast<TReturnType (*)(TParameters...)>(lua_touserdata(state_, lua_upvalueindex(1)));
+    //         return callback(state_, toCall, lua_gettop(state_)).release();
+    //     };
 
-        // we copy the function object onto the stack
-        lua_pushlightuserdata(state, reinterpret_cast<void*>(fn));
+    //     // we copy the function object onto the stack
+    //     lua_pushlightuserdata(state, reinterpret_cast<void*>(fn));
 
-        // pushing the function with the function object as upvalue
-        lua_pushcclosure(state, function, 1);
-        return PushedObject{state, 1};
-    }
+    //     // pushing the function with the function object as upvalue
+    //     lua_pushcclosure(state, function, 1);
+    //     return PushedObject{state, 1};
+    // }
     
     // this is the version of "push" for references to functions
     static auto push(lua_State* state, TReturnType (&fn)(TParameters...)) noexcept

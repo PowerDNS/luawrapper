@@ -62,15 +62,15 @@ TEST(AdvancedReadWrite, WriteVariableInsideArrays) {
     EXPECT_EQ(14, context.readVariable<int>("a", 2, "test"));
 }
 
-TEST(AdvancedReadWrite, WriteFunctionInsideArrays) {
-    LuaContext context;
+// TEST(AdvancedReadWrite, WriteFunctionInsideArrays) {
+//     LuaContext context;
 
-    context.executeCode("a = { 1, {} }");
-    context.writeFunction<int (int)>("a", 1, [](int x) { return x + 1; });
-    context.writeFunction("a", 2, "test", [](int x) { return x * 2; });
-    EXPECT_EQ(34, context.executeCode<int>("local f = a[1]; return f(33)"));
-    EXPECT_EQ(14, context.executeCode<int>("local f = a[2].test; return f(7)"));
-}
+//     context.executeCode("a = { 1, {} }");
+//     context.writeFunction<int (int)>("a", 1, [](int x) { return x + 1; });
+//     context.writeFunction("a", 2, "test", [](int x) { return x * 2; });
+//     EXPECT_EQ(34, context.executeCode<int>("local f = a[1]; return f(33)"));
+//     EXPECT_EQ(14, context.executeCode<int>("local f = a[2].test; return f(7)"));
+// }
 
 TEST(AdvancedReadWrite, WritingVectors) {
     LuaContext context;

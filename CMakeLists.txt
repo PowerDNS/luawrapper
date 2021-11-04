@@ -10,14 +10,18 @@ find_package(Boost REQUIRED)
 include_directories(${Boost_INCLUDE_DIRS})
 
 # lua
-find_package(Lua51)
-find_package(Lua52)
-find_package(Lua53)
-find_package(LuaJIT51)
-if (NOT ${LUA51_FOUND} AND NOT ${LUA52_FOUND} AND NOT ${LUA53_FOUND} AND NOT ${LUAJIT51_FOUND})
+# find_package(Lua51)
+# find_package(Lua52)
+# find_package(Lua53)
+# find_package(LuaJIT51)
+find_package(Luau)
+#if (NOT ${LUA51_FOUND} AND NOT ${LUA52_FOUND} AND NOT ${LUA53_FOUND} AND NOT ${LUAJIT51_FOUND} AND NOT ${LUAU_FOUND})
+if (NOT ${LUAU_FOUND})
 	message(FATAL_ERROR "Could not find lua library")
 endif()
-include_directories(${LUA_INCLUDE_DIR})
+include_directories(${LUAH_INCLUDE_DIR})
+include_directories(${LUAU_INCLUDE_DIR})
+include_directories(${LUAU_AST_INCLUDE_DIR})
 
 # including lua wrapper
 include_directories(include)
@@ -35,10 +39,10 @@ include_directories(${CMAKE_BINARY_DIR}/ThirdParty/googletest-src/include)
 
 # flags
 if (${CMAKE_COMPILER_IS_GNUCXX})
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17")
 endif()
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17")
 endif()
 
 # executable
@@ -57,7 +61,9 @@ add_executable(tests
 )
 
 target_link_libraries(tests
-	${LUA_LIBRARIES}
+	${LUA_COMPILER_LIBRARY}
+	${LUA_VM_LIBRARY}
+	${LUA_AST_LIBRARY}
 	gtest
 	gtest_main
 )
