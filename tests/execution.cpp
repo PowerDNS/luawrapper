@@ -7,13 +7,13 @@ TEST(Execution, BasicExecution) {
     EXPECT_EQ(2, context.readVariable<int>("a"));
 }
 
-// TEST(Execution, Errors) {
-//     LuaContext context;
-//     EXPECT_THROW(context.executeCode("qsdfqsdf"), LuaContext::SyntaxErrorException);
+TEST(Execution, Errors) {
+    LuaContext context;
+    EXPECT_THROW(context.executeCode("qsdfqsdf"), LuaContext::SyntaxErrorException);
 
-//     context.writeFunction("f", [](bool) {});
-//     EXPECT_THROW(context.executeCode("f('hello')"), LuaContext::ExecutionErrorException);
-// }
+    context.writeFunction("f", [](bool) {});
+    EXPECT_THROW(context.executeCode("f('hello')"), LuaContext::ExecutionErrorException);
+}
 
 TEST(Execution, ReturningValues) {
     LuaContext context;

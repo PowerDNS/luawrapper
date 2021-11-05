@@ -2274,56 +2274,58 @@ struct LuaContext::Pusher<TReturnType (TParameters...)>
         return PushedObject{state, 1};
     }
 
-    // // this is the version of "push" for trivially destructible objects
-    // template<typename TFunctionObject>
-    // static auto push(lua_State* state, TFunctionObject fn) noexcept
-    //     -> typename std::enable_if<boost::has_trivial_destructor<TFunctionObject>::value, PushedObject>::type
-    // {
-    //     // TODO: is_move_constructible not supported by some compilers
-    //     //static_assert(std::is_move_constructible<TFunctionObject>::value, "The function object must be move-constructible");
+    // this is the version of "push" for trivially destructible objects
+    template<typename TFunctionObject>
+    static auto push(lua_State* state, TFunctionObject fn) noexcept
+        -> typename std::enable_if<boost::has_trivial_destructor<TFunctionObject>::value, PushedObject>::type
+    {
+        // TODO: is_move_constructible not supported by some compilers
+        //static_assert(std::is_move_constructible<TFunctionObject>::value, "The function object must be move-constructible");
 
-    //     // when the lua script calls the thing we will push on the stack, we want "fn" to be executed
-    //     // since "fn" doesn't need to be destroyed, we simply push it on the stack
+        // when the lua script calls the thing we will push on the stack, we want "fn" to be executed
+        // since "fn" doesn't need to be destroyed, we simply push it on the stack
 
-    //     // this is the cfunction that is the callback
-    //     const auto function = [](lua_State* state_) -> int
-    //     {
-    //         // the function object is an upvalue
-    //         const auto toCall = static_cast<TFunctionObject*>(lua_touserdata(state_, lua_upvalueindex(1)));
-    //         return callback(state_, toCall, lua_gettop(state_)).release();
-    //     };
+        // this is the cfunction that is the callback
+        const auto function = [](lua_State* state_) -> int
+        {
+            // the function object is an upvalue
+            const auto toCall = static_cast<TFunctionObject*>(lua_touserdata(state_, lua_upvalueindex(1)));
+            return callback(state_, toCall, lua_gettop(state_)).release();
+        };
 
-    //     // we copy the function object onto the stack
-    //     const auto functionObjectLocation = static_cast<TFunctionObject*>(lua_newuserdata(state, sizeof(TFunctionObject)));
-    //     new (functionObjectLocation) TFunctionObject(std::move(fn));
+        // we copy the function object onto the stack
+        const auto functionObjectLocation = static_cast<TFunctionObject*>(lua_newuserdata(state, sizeof(TFunctionObject)));
+        new (functionObjectLocation) TFunctionObject(std::move(fn));
 
-    //     // pushing the function with the function object as upvalue
-    //     lua_pushcclosure(state, function, 1);
-    //     return PushedObject{state, 1};
-    // }
+        // pushing the function with the function object as upvalue
+        // lua_pushcclosure(state, function, 1);
+        lua_pushcfunction(state, function, NULL, 1);
+        return PushedObject{state, 1};
+    }
     
-    // // this is the version of "push" for pointer to functions
-    // static auto push(lua_State* state, TReturnType (*fn)(TParameters...)) noexcept
-    //     -> PushedObject
-    // {
-    //     // when the lua script calls the thing we will push on the stack, we want "fn" to be executed
-    //     // since "fn" doesn't need to be destroyed, we simply push it on the stack
+    // this is the version of "push" for pointer to functions
+    static auto push(lua_State* state, TReturnType (*fn)(TParameters...)) noexcept
+        -> PushedObject
+    {
+        // when the lua script calls the thing we will push on the stack, we want "fn" to be executed
+        // since "fn" doesn't need to be destroyed, we simply push it on the stack
 
-    //     // this is the cfunction that is the callback
-    //     const auto function = [](lua_State* state_) -> int
-    //     {
-    //         // the function object is an upvalue
-    //         const auto toCall = reinterpret_cast<TReturnType (*)(TParameters...)>(lua_touserdata(state_, lua_upvalueindex(1)));
-    //         return callback(state_, toCall, lua_gettop(state_)).release();
-    //     };
+        // this is the cfunction that is the callback
+        const auto function = [](lua_State* state_) -> int
+        {
+            // the function object is an upvalue
+            const auto toCall = reinterpret_cast<TReturnType (*)(TParameters...)>(lua_touserdata(state_, lua_upvalueindex(1)));
+            return callback(state_, toCall, lua_gettop(state_)).release();
+        };
 
-    //     // we copy the function object onto the stack
-    //     lua_pushlightuserdata(state, reinterpret_cast<void*>(fn));
+        // we copy the function object onto the stack
+        lua_pushlightuserdata(state, reinterpret_cast<void*>(fn));
 
-    //     // pushing the function with the function object as upvalue
-    //     lua_pushcclosure(state, function, 1);
-    //     return PushedObject{state, 1};
-    // }
+        // pushing the function with the function object as upvalue
+        // lua_pushcclosure(state, function, 1);
+        lua_pushcfunction(state, function, NULL, 1);
+        return PushedObject{state, 1};
+    }
     
     // this is the version of "push" for references to functions
     static auto push(lua_State* state, TReturnType (&fn)(TParameters...)) noexcept
